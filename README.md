@@ -1,2 +1,9 @@
-# tg-easyimges-bot
-这是一个基于简单图床制作的，TG快捷上传机器人。不用通过网页上传，可以直接把图片发送给机器人，自动获取图床链接。This is a TG quick upload robot based on a simple image hosting service. Instead of uploading via a web page, you can directly send the image to the robot and automatically obtain the image hosting link.
+# Telegram EasyImage Bot
+
+一个 Telegram 机器人，用于将图片上传到 EasyImages2.0 图床。
+
+## 功能
+- `/start`: 获取欢迎消息。
+- 支持上传图片（photo 或 document 类型），返回 URL 和 Markdown 链接。
+- 用户权限控制（通过 ALLOWED_USERS 环境变量）。
+
