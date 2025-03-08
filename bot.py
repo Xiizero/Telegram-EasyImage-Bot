@@ -3,8 +3,8 @@ import sys
 import requests
 import json
 from datetime import datetime
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 from telegram.constants import ChatAction
 
 # 从环境变量读取配置
@@ -42,7 +42,6 @@ def upload_image(file_path, token):
         raise Exception(f"文件不存在: {file_path}")
 
     with open(file_path, 'rb') as file:
-        # 构造 multipart/form-data 数据
         files = {'image': (os.path.basename(file_path), file, 'image/jpeg')}
         data = {'token': token}
         timestamped_print(f"发送请求到: {EASYIMAGE_API_URL}")
@@ -59,6 +58,21 @@ def upload_image(file_path, token):
                 raise Exception(f"上传失败：{result.get('message', '未知错误')}")
         else:
             raise Exception(f"上传失败，状态码：{response.status_code}")
+
+# 构造初始消息和键盘
+def create_initial_message_and_keyboard(context: ContextTypes.DEFAULT_TYPE):
+    message = (
+        f"🎉 图片上传成功！\n\n"
+        f"💡 点击下方按钮可直接复制对应内容"
+    )
+    keyboard = [
+        [InlineKeyboardButton("复制直链", callback_data="copy_direct_link")],
+        [InlineKeyboardButton("复制HTML", callback_data="copy_html_code")],
+        [InlineKeyboardButton("复制BBCode", callback_data="copy_bbcode")],
+        [InlineKeyboardButton("复制Markdown", callback_data="copy_markdown")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    return message, reply_markup
 
 # 处理消息（图片、文件）
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -83,20 +97,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text("不支持的文件类型，请发送图片。")
         return
 
-    # 下载文件并检查
     file = await context.bot.get_file(file_id)
     await file.download_to_drive(file_path)
     timestamped_print(f"文件下载完成: {file_path}")
 
-    # 上传图片
     try:
         url = upload_image(file_path, EASYIMAGE_TOKEN)
-        message = (
-            f"💌 **URL:** {url}\n"
-            f"🗨️ **Markdown:** `![image]({url})`"
-        )
+        # 构造各种格式
+        direct_link = url
+        html_code = f"<img src=\"{url}\" alt=\"image\">"
+        bbcode = f"[img]{url}[/img]"
+        markdown = f"![image]({url})"
+
+        # 存储内容到 context.user_data
+        context.user_data['direct_link'] = direct_link
+        context.user_data['html_code'] = html_code
+        context.user_data['bbcode'] = bbcode
+        context.user_data['markdown'] = markdown
+
+        # 构造初始消息和键盘
+        message, reply_markup = create_initial_message_and_keyboard(context)
+
         timestamped_print(f"图床上传成功: {url}")
-        await update.message.reply_text(message, parse_mode='Markdown')
+        await update.message.reply_text(message, parse_mode='Markdown', reply_markup=reply_markup)
     except Exception as e:
         timestamped_print(f"上传图片时出错: {e}")
         await update.message.reply_text(f"上传图片时出错: {e}")
@@ -104,6 +127,35 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         if os.path.exists(file_path):
             os.remove(file_path)
             timestamped_print(f"临时文件已删除: {file_path}")
+
+# 处理内联键盘回调
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()  # 确认按钮点击
+    data = query.data
+
+    # 根据 callback_data 获取对应内容
+    if data == "copy_direct_link":
+        content = context.user_data.get('direct_link', '未找到内容')
+    elif data == "copy_html_code":
+        content = context.user_data.get('html_code', '未找到内容')
+    elif data == "copy_bbcode":
+        content = context.user_data.get('bbcode', '未找到内容')
+    elif data == "copy_markdown":
+        content = context.user_data.get('markdown', '未找到内容')
+    elif data == "return":
+        # 返回初始页面
+        message, reply_markup = create_initial_message_and_keyboard(context)
+        await query.edit_message_text(message, parse_mode='Markdown', reply_markup=reply_markup)
+        return
+    else:
+        content = "未知操作"
+
+    # 显示复制内容，并添加返回按钮
+    message = f"已为您准备好内容，请手动复制：\n`{content}`"
+    keyboard = [[InlineKeyboardButton("返回", callback_data="return")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(message, parse_mode='Markdown', reply_markup=reply_markup)
 
 # 处理 /start 命令
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -118,6 +170,7 @@ def main() -> None:
 
     application.add_handler(CommandHandler('start', start))
     application.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL, handle_message))
+    application.add_handler(CallbackQueryHandler(button))
 
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
