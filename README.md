@@ -7,6 +7,9 @@
 - 支持上传图片（photo 或 document 类型），返回 URL 和 Markdown 链接。
 - 用户权限控制（通过 ALLOWED_USERS 环境变量）。
 
+## 功能展示
+![VID_20250308212655](https://img.sss.wiki/i/data/2025/03/08/z7us1h.gif)
+
 ## 部署教程
 ### Docker 命令行部署
 **拉取镜像:**
