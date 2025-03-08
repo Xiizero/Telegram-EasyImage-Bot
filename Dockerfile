@@ -1,14 +1,10 @@
-# 基础镜像
-FROM python:3.10-slim
-
-# 设置工作目录
+FROM python:3.11-slim
 WORKDIR /app
-
-# 复制文件
-COPY . .
-
-# 安装依赖
+COPY requirements.txt .
+COPY bot.py .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# 运行程序
+ENV TELEGRAM_BOT_TOKEN=""
+ENV EASYIMAGE_API_URL="https://your-easyimage-domain/api/index.php"
+ENV EASYIMAGE_TOKEN=""
+ENV ALLOWED_USERS=""
 CMD ["python", "bot.py"]
